@@ -12,6 +12,16 @@ namespace SixDoFLogger
 {
     class Program
     {
+
+        //Constants
+        private string filenameCSV = DateTime.Now.ToShortDateString() + "_" + (int)DateTime.Now.TimeOfDay.TotalSeconds + ".csv";
+        private string filenameReadable = DateTime.Now.ToShortDateString() + "_" + (int)DateTime.Now.TimeOfDay.TotalSeconds + ".txt";
+        const bool logReadable = false;
+        const bool logCsv = false;
+        const bool verbose = true;
+        const bool verboseCsv = true;
+
+
         static void Main(string[] args)
         {
             RTProtocol mRtProtocol = new RTProtocol();
@@ -44,14 +54,17 @@ namespace SixDoFLogger
                 }
                 Console.WriteLine("QTM: 6DOF settings available");
 
-                List<ComponentType> componentsToStream = new List<ComponentType>();
-                componentsToStream.Add(ComponentType.Component6dEulerResidual);
-                componentsToStream.Add(ComponentType.ComponentTimecode);
-                mRtProtocol.StreamAllFrames(componentsToStream);
+                //List<ComponentType> componentsToStream = new List<ComponentType>
+                //{
+                //    ComponentType.Component6dEulerResidual,
+                //    ComponentType.ComponentTimecode
+                //};
+
+                mRtProtocol.StreamAllFrames(ComponentType.Component6dEulerResidual);
                 Console.WriteLine("QTM: Starting to stream 6DOF data");
                 Thread.Sleep(500);
             }
-            string fileName = DateTime.Now.ToShortDateString() + "_" + (int)DateTime.Now.TimeOfDay.TotalSeconds + "_FILL.csv";
+            string fileName = DateTime.Now.ToShortDateString() + "_" + (int)DateTime.Now.TimeOfDay.TotalSeconds + ".csv";
             PacketType packetType;
             List<Q6DOFEuler> previousFrame6dData = new List<Q6DOFEuler>();
 
@@ -62,53 +75,104 @@ namespace SixDoFLogger
                     previousFrame6dData = mRtProtocol.GetRTPacket().Get6DOFEulerResidualData();
             }
 
-            while (true)
+            var csvHeader = "Frame;Body;Type;Magnitude;X;Y;Z\n";
+            using (var writer = File.AppendText(fileName))
             {
-                mRtProtocol.ReceiveRTPacket(out packetType, false);
-                if (packetType == PacketType.PacketData)
+                writer.Write(csvHeader);
+            }
+
+                while (true)
                 {
-
-                    var frame6dData = mRtProtocol.GetRTPacket().Get6DOFEulerResidualData();
-                    var packet = mRtProtocol.GetRTPacket();
-                    if (frame6dData != null)
+                    mRtProtocol.ReceiveRTPacket(out packetType, false);
+                    if (packetType == PacketType.PacketData)
                     {
-                        for (int body = 0; body < frame6dData.Count; body++)
+                        StringBuilder writeBufferReadable = new StringBuilder();
+                        StringBuilder writeBufferCSV = new StringBuilder();
+
+                        var frame6dData = mRtProtocol.GetRTPacket().Get6DOFEulerResidualData();
+                        var packet = mRtProtocol.GetRTPacket();
+                        var frameNumber = packet.Frame;
+                        if (frame6dData != null)
                         {
-                            var sixDofBody = frame6dData[body];
-                            var prevSexDofBody = previousFrame6dData[body];
-                            var bodySetting = mRtProtocol.Settings6DOF.Bodies[body];
-                            if (float.IsNaN(sixDofBody.Residual) && float.IsNaN(prevSexDofBody.Residual))
+                            for (int body = 0; body < frame6dData.Count; body++)
                             {
+                                var sixDofBody = frame6dData[body];
+                                var prevSexDofBody = previousFrame6dData[body];
+                                var bodySetting = mRtProtocol.Settings6DOF.Bodies[body];
+
+                                if (float.IsNaN(sixDofBody.Residual) && float.IsNaN(prevSexDofBody.Residual))
+                                {
+
+                                }
+                                else if (!float.IsNaN(sixDofBody.Residual) && float.IsNaN(prevSexDofBody.Residual))
+                                {
+                                    writeBufferReadable.AppendFormat("{0} Body: {1} appeard with coordinates {2:F2} {3:F2} {4:F2}", frameNumber, bodySetting.Name, sixDofBody.Position.X / 1000, sixDofBody.Position.Y / 1000, sixDofBody.Position.Z / 1000);
+
+                                    writeBufferCSV.AppendFormat("{0};{1};A;NaN;{2:F2};{3:F2};{4:F2}", frameNumber, bodySetting.Name, sixDofBody.Position.X / 1000, sixDofBody.Position.Y / 1000, sixDofBody.Position.Z / 1000);
+                                    //Console.WriteLine("Body: " + bodySetting.Name + " appeared");
+                                }
+                                else if (float.IsNaN(sixDofBody.Residual) && !float.IsNaN(prevSexDofBody.Residual))
+                                {
+                                    writeBufferReadable.AppendFormat("{0} Body: {1} disappeared with coordinates {2:F2} {3:F2} {4:F2}", frameNumber, bodySetting.Name, prevSexDofBody.Position.X / 1000, prevSexDofBody.Position.Y / 1000, prevSexDofBody.Position.Z / 1000);
+                                    writeBufferCSV.AppendFormat("{0};{1};D;NaN;{2:F2};{3:F2};{4:F2}", frameNumber, bodySetting.Name, prevSexDofBody.Position.X / 1000, prevSexDofBody.Position.Y / 1000, prevSexDofBody.Position.Z / 1000);
+
+                                    //Console.WriteLine("Body: " + bodySetting.Name + " disappeared");
+                                }
+                                else if (!float.IsNaN(sixDofBody.Residual) && !float.IsNaN(prevSexDofBody.Residual))
+                                {
+                                    var movementX = sixDofBody.Position.X - prevSexDofBody.Position.X;
+                                    var movementY = sixDofBody.Position.Y - prevSexDofBody.Position.Y;
+                                    var movementZ = sixDofBody.Position.Z - prevSexDofBody.Position.Z;
+                                    var movementABS = Math.Sqrt(Math.Pow(movementX, 2) + Math.Pow(movementY, 2) + Math.Pow(movementZ, 2));
+                                    var angMovement1 = Math.Abs(sixDofBody.Rotation.First - prevSexDofBody.Rotation.First);
+                                    var angMovement2 = Math.Abs(sixDofBody.Rotation.Second - prevSexDofBody.Rotation.Second);
+                                    var angMovement3 = Math.Abs(sixDofBody.Rotation.Third - prevSexDofBody.Rotation.Third);
+                                    var angMoveMax = Math.Max(angMovement1, Math.Max(angMovement2, angMovement3));
+                                    if (movementABS > 100)
+                                    {
+                                        writeBufferReadable.AppendFormat("{0} Body: {1} jumped {2:F}mm at {3:F2} {4:F2} {5:F2}", frameNumber, bodySetting.Name, movementABS, sixDofBody.Position.X / 1000, sixDofBody.Position.Y / 1000, sixDofBody.Position.Z / 1000);
+                                        writeBufferCSV.AppendFormat("{0};{1};J;{2:F2};{3:F2};{4:F2};{5:F2}", frameNumber, bodySetting.Name, movementABS, sixDofBody.Position.X / 1000, sixDofBody.Position.Y / 1000, sixDofBody.Position.Z / 1000);
+
+                                        //Console.WriteLine("Body : " + bodySetting.Name + " movement:" + movementABS);
+                                    }
+                                    if (angMoveMax > 10)
+                                    {
+                                        writeBufferReadable.AppendFormat("{0} Body: {1} flipped {2:F0} deg at {2:F2} {3:F2} {4:F2}", frameNumber, bodySetting.Name, angMoveMax, sixDofBody.Position.X / 1000, sixDofBody.Position.Y / 1000, sixDofBody.Position.Z / 1000);
+                                        writeBufferCSV.AppendFormat("{0};{1};F;{2:F2};{3:F2};{4:F2};{5:F2}", frameNumber, bodySetting.Name, movementABS, sixDofBody.Position.X / 1000, sixDofBody.Position.Y / 1000, sixDofBody.Position.Z / 1000);
+
+                                        //Console.WriteLine("Body : {0:S} angular movement First: {1:F} Second: {2:F} Third: {3:F}", bodySetting.Name, angMovement1,angMovement2,angMovement3);
+                                        //Console.WriteLine("Frame:{0:D5} Body:{1,20} X:{2,7:F1} Y:{3,7:F1} Z:{4,7:F1} First Angle:{5,7:F1} Second Angle:{6,7:F1} Third Angle:{7,7:F1} Residual:{8,7:F1}
+                                    }
+
+
+
+                                }
+                                if (writeBufferCSV.Length > 0)
+                                {
+                                using (var writer = File.AppendText(fileName))
+                                {
+                                    writer.WriteLine(writeBufferCSV);
+                                    
+                                }
+                                //Console.WriteLine(writeBufferCSV);
+                                writeBufferReadable.Clear();
+                                writeBufferCSV.Clear();
+                                }
+
 
                             }
-                            else if (!float.IsNaN(sixDofBody.Residual) && float.IsNaN(prevSexDofBody.Residual))
-                            {
-                                Console.WriteLine("Body: " + bodySetting.Name + " appeard");
-                            }
-                            else if (float.IsNaN(sixDofBody.Residual) && !float.IsNaN(prevSexDofBody.Residual))
-                            {
-                                Console.WriteLine("Body: " + bodySetting.Name + " disapeard");
-                            }
-                            else if (float.IsNaN(sixDofBody.Residual) && float.IsNaN(prevSexDofBody.Residual))
-                            {
-
-                            }
-
-
-
+                            previousFrame6dData = frame6dData;
                         }
-                        previousFrame6dData = frame6dData;
+                    }
+
+
+
+                    if (Console.KeyAvailable)
+                    {
+                        if (Console.ReadKey(false).Key == ConsoleKey.Escape)
+                            break;
                     }
                 }
-
-
-
-                if (Console.KeyAvailable)
-                {
-                    if (Console.ReadKey(false).Key == ConsoleKey.Escape)
-                        break;
-                }
-            }
 
             //while (true)
             //{
