@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.572
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SixDoFLogger", "SixDoFLogger\SixDoFLogger.csproj", "{F13FC152-23E0-4F70-93CC-D234704D36D0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RTClientSDK.Net", "..\external\RTClientSDK.Net\RTClientSDK.Net.csproj", "{0DF35107-DDE5-4E9E-9284-F5D05BB47146}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F13FC152-23E0-4F70-93CC-D234704D36D0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F13FC152-23E0-4F70-93CC-D234704D36D0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F13FC152-23E0-4F70-93CC-D234704D36D0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F13FC152-23E0-4F70-93CC-D234704D36D0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0DF35107-DDE5-4E9E-9284-F5D05BB47146}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0DF35107-DDE5-4E9E-9284-F5D05BB47146}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0DF35107-DDE5-4E9E-9284-F5D05BB47146}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0DF35107-DDE5-4E9E-9284-F5D05BB47146}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {37962CA6-1474-4954-A4EE-9F2915C7F5F2}
+	EndGlobalSection
+EndGlobal
