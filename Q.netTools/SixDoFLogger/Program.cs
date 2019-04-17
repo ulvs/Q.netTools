@@ -7,25 +7,59 @@ using QTMRealTimeSDK;
 using QTMRealTimeSDK.Data;
 using System.Threading;
 using System.IO;
-
+using Newtonsoft.Json;
+using SharpConfig;
 namespace SixDoFLogger
 {
+
     class Program
     {
+        public class sixDofBody
+        {
+            public string Name { get; set; }
+            public int numberOfFrames { get; set; }
+            public int lastSeen { get; set; }
+            public int biggestGap { get; set; }
 
-
-
+        }
+        static private void CreateConfigFile()
+        {
+            var config = new Configuration();
+            config["General"]["ipAdress"].StringValue = "127.0.0.1";
+            config["General"]["Filename Prefix"].StringValue = "";
+            config["General"]["Log Readable"].BoolValue = false;
+            config["General"]["Log CSV"].BoolValue = true;
+            config["General"]["Verbose"].BoolValue = true;
+            config["General"]["Verbose CSV"].BoolValue = false;
+            config.SaveToFile("config.cfg");
+        }
         static void Main(string[] args)
         {
+            //CreateConfigFile();
             //Constants
-            string filenameCSV = DateTime.Now.ToShortDateString() + "_" + (int)DateTime.Now.TimeOfDay.TotalSeconds + ".csv";
-            string filenameReadable = DateTime.Now.ToShortDateString() + "_" + (int)DateTime.Now.TimeOfDay.TotalSeconds + ".txt";
-            const bool logReadable = false;
-            const bool logCsv = true;
-            const bool verbose = false;
-            const bool verboseCsv = false;
-            string ipAddress = "127.0.0.1";
+            var config = new Configuration();
+            try
+            {
+                config = Configuration.LoadFromFile("config.cfg");
+                Console.WriteLine("Settings loaded from config.cfg");
+            }
+            catch
+            {
+                CreateConfigFile();
+                Console.WriteLine("No Configuration file found, new file created: config.cfg");
+                
+            }
+            var section = config["General"];
 
+            string filenameCSV = section["Filename Prefix"].StringValue + DateTime.Now.ToShortDateString() + "_" + (int)DateTime.Now.TimeOfDay.TotalSeconds + ".csv";
+            string filenameReadable = section["Filename Prefix"].StringValue + DateTime.Now.ToShortDateString() + "_" + (int)DateTime.Now.TimeOfDay.TotalSeconds + ".txt";
+            bool logReadable = section["Log Readable"].BoolValue;
+            bool logCsv = section["Log CSV"].BoolValue;
+            bool verbose = section["Verbose"].BoolValue;
+            bool verboseCsv = section["Verbose CSV"].BoolValue;
+            string ipAddress = section["ipAdress"].StringValue;
+            Dictionary<string, sixDofBody> bodys = new Dictionary<string, sixDofBody>();
+            int totalNumberofFrames = 0;
             DateTime lastBlip = new DateTime();
             lastBlip = DateTime.Now;
             int frameNumber = 0;
@@ -77,9 +111,23 @@ namespace SixDoFLogger
             {
                 mRtProtocol.ReceiveRTPacket(out packetType, false);
                 if (packetType == PacketType.PacketData)
+                {
+                    
                     previousFrame6dData = mRtProtocol.GetRTPacket().Get6DOFEulerResidualData();
-            }
+                    foreach (var body in mRtProtocol.Settings6DOF.Bodies)
+                    {
+                        var mbody = new sixDofBody();
+                        mbody.Name = body.Name;
+                        mbody.lastSeen = mRtProtocol.GetRTPacket().Frame;
+                        mbody.numberOfFrames = 1;
+                        mbody.biggestGap = 0;
+                        bodys.Add(body.Name, mbody);
+                    }
+                }
 
+            }
+            
+            
             var csvHeader = "Frame;Body;Type;Magnitude;X;Y;Z\n";
             using (var writer = File.AppendText(filenameCSV))
             {
@@ -104,6 +152,17 @@ namespace SixDoFLogger
                             var sixDofBody = frame6dData[body];
                             var prevSexDofBody = previousFrame6dData[body];
                             var bodySetting = mRtProtocol.Settings6DOF.Bodies[body];
+                            totalNumberofFrames++;
+                            //if (float.IsNaN(sixDofBody.Residual))
+                            //{
+                            //    bodys[bodySetting.Name].numberOfFrames++;
+                            //    if ((frameNumber - bodys[bodySetting.Name].lastSeen)> bodys[bodySetting.Name].biggestGap)
+                            //    {
+                            //        bodys[bodySetting.Name].biggestGap = (frameNumber - bodys[bodySetting.Name].lastSeen);
+                            //    }
+                            //    bodys[bodySetting.Name].lastSeen = frameNumber;
+                                
+                            //}
 
                             if (float.IsNaN(sixDofBody.Residual) && float.IsNaN(prevSexDofBody.Residual))
                             {
@@ -188,9 +247,6 @@ namespace SixDoFLogger
                         previousFrame6dData = frame6dData;
                     }
                 }
-
-
-
                 if (Console.KeyAvailable)
                 {
                     if (Console.ReadKey(false).Key == ConsoleKey.Escape)
@@ -199,9 +255,8 @@ namespace SixDoFLogger
                 }
                 if (lastBlip.AddSeconds(1) < DateTime.Now)
                 {
-                    Console.WriteLine("Loggind, current frame " + frameNumber);
+                    Console.WriteLine("Logging, current frame " + frameNumber);
                     lastBlip = DateTime.Now;
-
                 }
 
             }
