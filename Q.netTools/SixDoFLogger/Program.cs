@@ -50,9 +50,9 @@ namespace SixDoFLogger
                 
             }
             var section = config["General"];
-
-            string filenameCSV = section["Filename Prefix"].StringValue + DateTime.Now.ToShortDateString() + "_" + (int)DateTime.Now.TimeOfDay.TotalSeconds + ".csv";
-            string filenameReadable = section["Filename Prefix"].StringValue + DateTime.Now.ToShortDateString() + "_" + (int)DateTime.Now.TimeOfDay.TotalSeconds + ".txt";
+            string dateToday = DateTime.Today.Year.ToString() + DateTime.Today.Month.ToString() + DateTime.Today.Day.ToString();
+            string filenameCSV = section["Filename Prefix"].StringValue + dateToday + "_" + (int)DateTime.Now.TimeOfDay.TotalSeconds + ".csv";
+            string filenameReadable = section["Filename Prefix"].StringValue + dateToday + "_" + (int)DateTime.Now.TimeOfDay.TotalSeconds + ".txt";
             bool logReadable = section["Log Readable"].BoolValue;
             bool logCsv = section["Log CSV"].BoolValue;
             bool verbose = section["Verbose"].BoolValue;
@@ -103,7 +103,7 @@ namespace SixDoFLogger
                 Console.WriteLine("QTM: Starting to stream 6DOF data");
                 Thread.Sleep(500);
             }
-            string fileName = DateTime.Now.ToShortDateString() + "_" + (int)DateTime.Now.TimeOfDay.TotalSeconds + ".csv";
+            string fileName = DateTime.Today.Year + DateTime.Today.Month + DateTime.Today.Day + "_" + (int)DateTime.Now.TimeOfDay.TotalSeconds + ".csv";
             PacketType packetType;
             List<Q6DOFEuler> previousFrame6dData = new List<Q6DOFEuler>();
 
