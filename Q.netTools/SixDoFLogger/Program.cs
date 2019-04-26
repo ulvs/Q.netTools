@@ -14,6 +14,8 @@ namespace SixDoFLogger
 
     class Program
     {
+        
+
         public class sixDofBody
         {
             public string Name { get; set; }
@@ -31,6 +33,9 @@ namespace SixDoFLogger
             config["General"]["Log CSV"].BoolValue = true;
             config["General"]["Verbose"].BoolValue = true;
             config["General"]["Verbose CSV"].BoolValue = false;
+            config["General"]["Jump mm"].IntValue = 100;
+            config["General"]["Flip deg"].IntValue = 30;
+
             config.SaveToFile("config.cfg");
         }
         static void Main(string[] args)
@@ -47,7 +52,8 @@ namespace SixDoFLogger
             {
                 CreateConfigFile();
                 Console.WriteLine("No Configuration file found, new file created: config.cfg");
-                
+                Environment.Exit(0);
+
             }
             var section = config["General"];
             string dateToday = DateTime.Today.Year.ToString() + DateTime.Today.Month.ToString() + DateTime.Today.Day.ToString();
@@ -58,7 +64,11 @@ namespace SixDoFLogger
             bool verbose = section["Verbose"].BoolValue;
             bool verboseCsv = section["Verbose CSV"].BoolValue;
             string ipAddress = section["ipAdress"].StringValue;
-            Dictionary<string, sixDofBody> bodys = new Dictionary<string, sixDofBody>();
+            int flipDeg = section["Flip deg"].IntValue;
+            int jumpDist = section["Jump mm"].IntValue;
+
+            //Dictionary<string, sixDofBody> bodys = new Dictionary<string, sixDofBody>();
+            List<sixDofBody> ListOfBodies = new List<sixDofBody>();
             int totalNumberofFrames = 0;
             DateTime lastBlip = new DateTime();
             lastBlip = DateTime.Now;
@@ -112,7 +122,7 @@ namespace SixDoFLogger
                 mRtProtocol.ReceiveRTPacket(out packetType, false);
                 if (packetType == PacketType.PacketData)
                 {
-                    
+
                     previousFrame6dData = mRtProtocol.GetRTPacket().Get6DOFEulerResidualData();
                     foreach (var body in mRtProtocol.Settings6DOF.Bodies)
                     {
@@ -121,13 +131,26 @@ namespace SixDoFLogger
                         mbody.lastSeen = mRtProtocol.GetRTPacket().Frame;
                         mbody.numberOfFrames = 1;
                         mbody.biggestGap = 0;
-                        bodys.Add(body.Name, mbody);
+                        ListOfBodies.Add(mbody);
                     }
+                    var duplicates = ListOfBodies.GroupBy(x => x.Name).Where(x => x.Count() > 1).ToList(); //.Select(x => new { Name = x.Key, objs = x.ToList() });
+                    foreach (var dup in duplicates)
+                    {
+                        Console.WriteLine("Warning multiple bodies with the same name: " + dup.Key);
+                        Console.WriteLine("This will effect gap length calculations");
+                        foreach (var bod in dup)
+                        {
+
+                        }
+
+                    }
+
+
                 }
 
             }
-            
-            
+
+
             var csvHeader = "Frame;Body;Type;Magnitude;X;Y;Z\n";
             using (var writer = File.AppendText(filenameCSV))
             {
@@ -161,7 +184,7 @@ namespace SixDoFLogger
                             //        bodys[bodySetting.Name].biggestGap = (frameNumber - bodys[bodySetting.Name].lastSeen);
                             //    }
                             //    bodys[bodySetting.Name].lastSeen = frameNumber;
-                                
+
                             //}
 
                             if (float.IsNaN(sixDofBody.Residual) && float.IsNaN(prevSexDofBody.Residual))
@@ -173,14 +196,11 @@ namespace SixDoFLogger
                                 writeBufferReadable.AppendFormat("{0} Body: {1} appeard with coordinates {2:F2} {3:F2} {4:F2}", frameNumber, bodySetting.Name, sixDofBody.Position.X / 1000, sixDofBody.Position.Y / 1000, sixDofBody.Position.Z / 1000);
 
                                 writeBufferCSV.AppendFormat("{0};{1};A;NaN;{2:F2};{3:F2};{4:F2}", frameNumber, bodySetting.Name, sixDofBody.Position.X / 1000, sixDofBody.Position.Y / 1000, sixDofBody.Position.Z / 1000);
-                                //Console.WriteLine("Body: " + bodySetting.Name + " appeared");
                             }
                             else if (float.IsNaN(sixDofBody.Residual) && !float.IsNaN(prevSexDofBody.Residual))
                             {
                                 writeBufferReadable.AppendFormat("{0} Body: {1} disappeared with coordinates {2:F2} {3:F2} {4:F2}", frameNumber, bodySetting.Name, prevSexDofBody.Position.X / 1000, prevSexDofBody.Position.Y / 1000, prevSexDofBody.Position.Z / 1000);
                                 writeBufferCSV.AppendFormat("{0};{1};D;NaN;{2:F2};{3:F2};{4:F2}", frameNumber, bodySetting.Name, prevSexDofBody.Position.X / 1000, prevSexDofBody.Position.Y / 1000, prevSexDofBody.Position.Z / 1000);
-
-                                //Console.WriteLine("Body: " + bodySetting.Name + " disappeared");
                             }
                             else if (!float.IsNaN(sixDofBody.Residual) && !float.IsNaN(prevSexDofBody.Residual))
                             {
@@ -192,20 +212,15 @@ namespace SixDoFLogger
                                 var angMovement2 = Math.Abs(sixDofBody.Rotation.Second - prevSexDofBody.Rotation.Second);
                                 var angMovement3 = Math.Abs(sixDofBody.Rotation.Third - prevSexDofBody.Rotation.Third);
                                 var angMoveMax = Math.Max(angMovement1, Math.Max(angMovement2, angMovement3));
-                                if (movementABS > 100)
+                                if (movementABS > jumpDist)
                                 {
                                     writeBufferReadable.AppendFormat("{0} Body: {1} jumped {2:F}mm at {3:F2} {4:F2} {5:F2}", frameNumber, bodySetting.Name, movementABS, sixDofBody.Position.X / 1000, sixDofBody.Position.Y / 1000, sixDofBody.Position.Z / 1000);
                                     writeBufferCSV.AppendFormat("{0};{1};J;{2:F2};{3:F2};{4:F2};{5:F2}", frameNumber, bodySetting.Name, movementABS, sixDofBody.Position.X / 1000, sixDofBody.Position.Y / 1000, sixDofBody.Position.Z / 1000);
-
-                                    //Console.WriteLine("Body : " + bodySetting.Name + " movement:" + movementABS);
                                 }
-                                if (angMoveMax > 10)
+                                if (angMoveMax > flipDeg)
                                 {
                                     writeBufferReadable.AppendFormat("{0} Body: {1} flipped {2:F0} deg at {2:F2} {3:F2} {4:F2}", frameNumber, bodySetting.Name, angMoveMax, sixDofBody.Position.X / 1000, sixDofBody.Position.Y / 1000, sixDofBody.Position.Z / 1000);
                                     writeBufferCSV.AppendFormat("{0};{1};F;{2:F2};{3:F2};{4:F2};{5:F2}", frameNumber, bodySetting.Name, movementABS, sixDofBody.Position.X / 1000, sixDofBody.Position.Y / 1000, sixDofBody.Position.Z / 1000);
-
-                                    //Console.WriteLine("Body : {0:S} angular movement First: {1:F} Second: {2:F} Third: {3:F}", bodySetting.Name, angMovement1,angMovement2,angMovement3);
-                                    //Console.WriteLine("Frame:{0:D5} Body:{1,20} X:{2,7:F1} Y:{3,7:F1} Z:{4,7:F1} First Angle:{5,7:F1} Second Angle:{6,7:F1} Third Angle:{7,7:F1} Residual:{8,7:F1}
                                 }
 
 
@@ -251,7 +266,7 @@ namespace SixDoFLogger
                 {
                     if (Console.ReadKey(false).Key == ConsoleKey.Escape)
                         break;
-                    
+
                 }
                 if (lastBlip.AddSeconds(1) < DateTime.Now)
                 {
